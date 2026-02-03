@@ -1,0 +1,5 @@
+torch
+gymnasium
+stable-baselines3
+fastapi
+uvicorn
