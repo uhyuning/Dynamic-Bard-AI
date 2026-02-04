@@ -1,5 +1,16 @@
-torch
-gymnasium
-stable-baselines3
-fastapi
-uvicorn
+# --- AI & Deep Learning ---
+torch                   # 신경망 계산을 위한 핵심 엔진
+torchvision             # 이미지 처리 도구
+
+# --- Reinforcement Learning ---
+gymnasium               # 강화학습 환경 표준 인터페이스
+stable-baselines3[extra] # PPO, DQN 등 검증된 RL 알고리즘 모음
+
+# --- Communication (API Server) ---
+fastapi                 # UE5와 통신할 초고속 서버 프레임워크
+uvicorn                 # FastAPI 서버를 실행해주는 도구
+pydantic                # 데이터 규격 및 유효성 검사
+
+# --- Utilities ---
+numpy                   # 수치 계산 라이브러리
+matplotlib              # 학습 결과 시각화(그래프) 도구
