@@ -13,3 +13,16 @@
         }
     ]
 }
+
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.4",
+	"Category": "",
+	"Description": "",
+	"Plugins": [
+		{
+			"Name": "VaRest",  
+			"Enabled": true
+		}
+	]
+}
