@@ -1,12 +1,23 @@
-# RL_Trainer/models/model.py
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-class DQN:
-    def __init__(self, state_size, action_size):
-        self.state_size = state_size
-        self.action_size = action_size
-        # 나중에 여기에 PyTorch나 TensorFlow 신경망이 들어갑니다.
-        print(f"뇌 세포 생성 완료! (입력: {state_size}, 출력: {action_size})")
+class DQN(nn.Module):
+    """
+    [입문자 가이드] DQN(Deep Q-Network)은 AI의 '뇌'에 해당합니다.
+    언리얼로부터 상태(State)를 입력받아, 어떤 행동(Action)이 가장 좋을지 점수를 매깁니다.
+    """
+    def __init__(self, state_dim=8, action_dim=2):
+        super(DQN, self).__init__()
+        # 입력층 -> 은닉층 1 (128개의 뉴런)
+        self.fc1 = nn.Linear(state_dim, 128)
+        # 은닉층 1 -> 은닉층 2 (128개의 뉴런)
+        self.fc2 = nn.Linear(128, 128)
+        # 은닉층 2 -> 출력층 (행동의 개수만큼 점수 출력)
+        self.fc3 = nn.Linear(128, action_dim)
 
     def forward(self, x):
-        # 데이터가 뇌를 통과하며 판단을 내리는 과정
-        pass
+        # ReLU는 인공 뉴런의 활성화를 조절하는 '스위치' 같은 역할입니다.
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        return self.fc3(x)

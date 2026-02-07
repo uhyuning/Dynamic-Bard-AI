@@ -1,54 +1,105 @@
-from fastapi import FastAPI
 import sys
 import os
+from fastapi import FastAPI
+import torch
+import torch.optim as optim
+import torch.nn.functional as F
 
-current_dir = os.path.dirname(os.path.abspath(__file__)) # 현재 AIServer 폴더 위치
-project_root = os.path.dirname(current_dir)             # 그 위 상위 폴더(Root)
-
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
-    # insert(0, ...)을 써서 파이썬이 가방 맨 앞칸에서 우리 프로젝트 폴더를 찾게 합니다.
     sys.path.insert(0, project_root)
 
-
+# 부품 가져오기
 try:
     from Shared.protocol import EnvState, AIResponse
-except ModuleNotFoundError:
-    print("❌ 에러: Shared/protocol.py 파일을 찾을 수 없습니다. 경로를 확인해주세요.")
+    from RL_Trainer.models.model import DQN  
+    from RL_Trainer.utils.memory import ReplayBuffer
+    from spotify_mock import SpotifyMock
+    from gpt_client import GPTController
+except ModuleNotFoundError as e:
+    print(f"❌ 모듈 로드 에러: {e}. 폴더 구조를 확인하세요!")
     sys.exit(1)
 
 app = FastAPI()
 
-# 나중에 사용할 연구실 부품들 (준비 완료)
-# from RL_Trainer.models.model import DQN 
-# from RL_Trainer.memory import ReplayMemory 
+# 2. AI 세팅 (뇌, 최적화 도구, 기억 저장소)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = DQN(state_dim=8, action_dim=2).to(device)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+memory = ReplayBuffer(capacity=10000)
+
+# 3. 감각 및 소통 도구 세팅
+spotify = SpotifyMock()
+gpt = GPTController()
+
+# [학습용 전역 변수]
+last_state = None
+last_action = None
 
 @app.get("/")
 def read_root():
-    return {
-        "status": "online", 
-        "message": "서버가 정상 작동 중입니다! 🚀",
-        "info": "이제 언리얼에서 신호를 보낼 준비가 됐어!"
-    }
+    return {"status": "online", "message": "종합 AI 연구소 가동 중! 🧠🎶💬"}
 
-# 3. 언리얼로부터 데이터를 받아 AI가 판단(Action)을 내리는 곳
 @app.post("/act", response_model=AIResponse)
 async def get_action(state: EnvState):
-    # [로그 확인] 하윤이가 언리얼에서 보낸 데이터가 서버 터미널에 찍힙니다.
-    print(f"📍 [수신] 위치: {state.position} | 🎯 목표 거리: {state.target_dist}")
+    global last_state, last_action
+    
+    # [1] 현재 음악 정보 가져오기
+    music = spotify.get_current_track_info()
+    
+    # [2] 데이터 정리 (에러 방지를 위해 모든 데이터를 float 숫자로 강제 변환)
+    # 위치(3) + 속도(3, 일단 0) + 음악(2) = 총 8개
+    try:
+        current_state_list = [
+            float(state.position[0]), float(state.position[1]), float(state.position[2]),
+            0.0, 0.0, 0.0,
+            float(music['bpm'] / 160.0),
+            float(music['energy'])
+        ]
+    except Exception as e:
+        print(f"⚠️ 데이터 변환 에러: {e}")
+        current_state_list = [0.0] * 8
 
-    # TODO: 나중에 여기에 RL_Trainer의 모델을 연결하여 실제 판단 로직을 넣습니다.
-    # 예: action = model.predict(state)
+    # [3] 강화학습 - 이전 행동 복습하기
+    if last_state is not None:
+        reward = 1.0 if (music['energy'] > 0.5 and last_action == 0) else -0.1
+        memory.push(last_state, last_action, reward, current_state_list, False)
+        
+        if len(memory) > 32:
+            # 실시간 학습은 여기서 발생 (나중에 학습 알고리즘을 구체화할 수 있습니다)
+            pass
+
+    # [4] AI의 현재 행동 결정
+    # 리스트를 텐서로 바꿀 때 [ ]로 한 번 더 감싸서 (1, 8) 모양으로 만듭니다.
+    input_tensor = torch.tensor([current_state_list], dtype=torch.float32).to(device)
     
-    # [테스트용] 지금은 일단 '전진' 신호(1.0, 0.0)를 반환합니다.
-    test_action = [1.0, 0.0] 
+    model.eval() # 판단 모드
+    with torch.no_grad():
+        prediction = model(input_tensor)
+        action_idx = int(torch.argmax(prediction).item())
+
+    # 다음 차례를 위해 저장
+    last_state = current_state_list
+    last_action = action_idx
+
+    # [5] 행동 이름 및 GPT 코멘트 생성
+    action_name = "신나게 전진" if action_idx == 0 else "우아하게 회전"
+    ai_speech = gpt.get_ai_comment(music['genre'], music['bpm'], action_name)
+
+    # 로그 출력
+    print(f"\n[AI 연구소 로그]")
+    print(f"🎵 음악: {music['genre']} ({music['bpm']} BPM)")
+    print(f"🤖 판단: {action_name}")
+    print(f"💬 GPT: {ai_speech}")
     
+    # [언리얼로 최종 응답 전송]
     return AIResponse(
-        action=test_action, 
-        message="서버가 데이터를 확인하고 행동을 결정했습니다."
+        action=[float(action_idx), 0.0], 
+        message=str(ai_speech)
     )
 
 if __name__ == "__main__":
     import uvicorn
-    # host="0.0.0.0"은 같은 네트워크 내의 다른 장치에서도 접속을 허용합니다.
-    print("💡 서버를 시작합니다. 언리얼 프로젝트에서 http://localhost:8000 으로 접속하세요.")
+    print(f"🚀 [최종 수정 완료] AI 서버가 하윤이를 기다립니다!")
     uvicorn.run(app, host="0.0.0.0", port=8000)

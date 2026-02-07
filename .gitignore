@@ -1,0 +1,50 @@
+# ==========================================
+# 1. 보안 및 환경 설정 (가장 중요!)
+# ==========================================
+.env
+auth.json
+
+# ==========================================
+# 2. 파이썬 (AI 서버 & 학습) 관련
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# ==========================================
+# 3. 언리얼 엔진 5 (용량 괴물들 제거)
+# ==========================================
+# 빌드 시 생성되는 임시 폴더들
+UnrealProject/Binaries/
+UnrealProject/Build/
+UnrealProject/DerivedDataCache/
+UnrealProject/Intermediate/
+UnrealProject/Saved/
+UnrealProject/Script/
+
+# 비주얼 스튜디오 관련 파일들 (C++ 개발 시 생성됨)
+UnrealProject/.vs/
+UnrealProject/*.sln
+UnrealProject/*.suo
+UnrealProject/*.opensdf
+UnrealProject/*.sdf
+UnrealProject/*.VC.db
+UnrealProject/*.VC.opendb
+
+# 에디터가 자동 생성하는 파일들
+UnrealProject/FileOpenOrder/
+
+# ==========================================
+# 4. 기타 OS 및 로그 파일
+# ==========================================
+.DS_Store
+.DS_Store?
+Thumbs.db
+*.log
