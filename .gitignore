@@ -21,30 +21,22 @@ dist/
 # ==========================================
 # 3. 언리얼 엔진 5 (용량 괴물들 제거)
 # ==========================================
-# 빌드 시 생성되는 임시 폴더들
-UnrealProject/Binaries/
-UnrealProject/Build/
-UnrealProject/DerivedDataCache/
-UnrealProject/Intermediate/
-UnrealProject/Saved/
-UnrealProject/Script/
+# 모든 하위 폴더에서 아래 이름의 폴더/파일은 제외합니다.
+**/Binaries/
+**/Build/
+**/DerivedDataCache/
+**/Intermediate/
+**/Saved/
+**/Script/
 
-# 비주얼 스튜디오 관련 파일들 (C++ 개발 시 생성됨)
-UnrealProject/.vs/
-UnrealProject/*.sln
-UnrealProject/*.suo
-UnrealProject/*.opensdf
-UnrealProject/*.sdf
-UnrealProject/*.VC.db
-UnrealProject/*.VC.opendb
+# 비주얼 스튜디오 관련
+**/.vs/
+*.sln
+*.suo
+*.VC.db
 
-# 에디터가 자동 생성하는 파일들
-UnrealProject/FileOpenOrder/
-
-# ==========================================
-# 4. 기타 OS 및 로그 파일
-# ==========================================
-.DS_Store
-.DS_Store?
-Thumbs.db
+# 파이썬 및 기타
+__pycache__/
+.venv/
 *.log
+.DS_Store
