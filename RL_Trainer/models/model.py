@@ -2,22 +2,33 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class DQN(nn.Module):
-    """
-    [입문자 가이드] DQN(Deep Q-Network)은 AI의 '뇌'에 해당합니다.
-    언리얼로부터 상태(State)를 입력받아, 어떤 행동(Action)이 가장 좋을지 점수를 매깁니다.
-    """
-    def __init__(self, state_dim=8, action_dim=2):
-        super(DQN, self).__init__()
-        # 입력층 -> 은닉층 1 (128개의 뉴런)
-        self.fc1 = nn.Linear(state_dim, 128)
-        # 은닉층 1 -> 은닉층 2 (128개의 뉴런)
-        self.fc2 = nn.Linear(128, 128)
-        # 은닉층 2 -> 출력층 (행동의 개수만큼 점수 출력)
-        self.fc3 = nn.Linear(128, action_dim)
+class MasterAgent(nn.Module):
+    def __init__(self, state_dim=16, action_dim=4): # 상태와 행동의 가짓수를 늘렸어요.
+        super(MasterAgent, self).__init__()
+        
+        # 공통적인 상황 이해 (두뇌의 중심부)
+        self.shared_layer = nn.Sequential(
+            nn.Linear(state_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU()
+        )
+        
+        # 가짓수 선택 (어떤 종류의 행동을 할 것인가?)
+        # 0: 대화, 1: 음악, 2: 배경, 3: 소환
+        self.action_head = nn.Linear(256, action_dim)
+        
+        # 세부 판단 (어떤 노래? 어떤 악기? - 텍스트/카테고리 분류용)
+        self.detail_head = nn.Linear(256, 10) # 10가지 세부 옵션 중 선택
 
     def forward(self, x):
-        # ReLU는 인공 뉴런의 활성화를 조절하는 '스위치' 같은 역할입니다.
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
+        # 1. 상황을 공통적으로 분석합니다.
+        context = self.shared_layer(x)
+        
+        # 2. 어떤 '종류'의 행동을 할지 점수를 매깁니다.
+        action_scores = self.action_head(context)
+        
+        # 3. 그 행동 내에서 어떤 '세부 옵션'이 좋을지 점수를 매깁니다.
+        detail_scores = self.detail_head(context)
+        
+        return action_scores, detail_scores
