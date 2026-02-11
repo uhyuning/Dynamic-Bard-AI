@@ -1,90 +1,109 @@
-# AIServer/train.py
 import torch
 import torch.optim as optim
 import torch.nn as nn
+import torch.nn.functional as F
 import random
+import os
 
-# 파일들간의 연결
-from models.model import MasterAgent  # MasterAgent 모델 불러오기
-from memory import ReplayMemory # 위에서 만든 ReplayMemory 불러오기
+from models.model import MasterAgent  
+from memory import ReplayMemory       
 
-# 1. 하이퍼파라미터 (AI의 학습 설정값)
-STATE_DIM = 16  # 입력받을 상태 정보의 개수
-ACTION_DIM = 4  # AI가 할 수 있는 행동의 개수 (대화, 음악, 배경, 소환)
-BATCH_SIZE = 32 # 한 번에 복습할 기억의 양
-LR = 0.001      # 학습률 (공부하는 속도)
+# 1. 하이퍼파라미터
+STATE_DIM = 16  
+ACTION_DIM = 4  
+BATCH_SIZE = 32 
+LR = 0.001      
+GAMMA = 0.99    
+SAVE_PATH = "master_agent_brain.pth"
 
 # 2. 인스턴스 생성
 model = MasterAgent(STATE_DIM, ACTION_DIM)
 memory = ReplayMemory(capacity=10000)
 optimizer = optim.Adam(model.parameters(), lr=LR)
-criterion = nn.MSELoss() # 정답과 얼마나 차이나는지 계산
+criterion = nn.MSELoss() 
+
+# --- [수정] 지능 + 카운트 불러오기 로직 ---
+total_episodes = 0 # 총 누적 학습 횟수 초기화
+
+if os.path.exists(SAVE_PATH):
+    checkpoint = torch.load(SAVE_PATH)
+    # 딕셔너리 형태일 경우와 이전 버전(모델만 저장된 경우)을 모두 대응합니다.
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+        total_episodes = checkpoint.get('total_episodes', 0)
+    else:
+        # 이전 버전 코드 대응용
+        model.load_state_dict(checkpoint)
+    
+    print(f"📜 기존 지능을 불러왔습니다. (누적 학습 횟수: {total_episodes}회)")
+else:
+    print("🐣 새로운 지능으로 처음부터 시작합니다.")
+# ---------------------------------------
 
 def give_reward(action, user_sentiment):
-    """
-    [입문자 가이드] 보상 함수는 AI가 한 행동이 잘한 건지 못한 건지 점수를 주는 심판입니다.
-    """
     reward = 0.0
-    # AI가 '노래 틀기(Action 1)'를 골랐는데, 유저가 '우울함(sad)' 상태라면 보상을 줍니다.
     if action == 1 and user_sentiment == "sad":
         reward = 1.0
-    # 다른 케이스에 대한 보상 로직도 여기에 추가하면 됩니다.
     return reward
 
 def train_step():
-    """AI가 기억 저장소에서 데이터를 꺼내 공부하는 핵심 단계"""
-    # 기억이 최소한 BATCH_SIZE만큼은 쌓여야 학습을 시작함
     if len(memory) < BATCH_SIZE:
-        return
-
-    # 3. 무작위 복습 시작
+        return None
     transitions = memory.sample(BATCH_SIZE)
-    # (여기서 실제 텐서 변환 및 역전파 학습 로직이 들어갑니다)
-    
-    print(f"현재 기억 개수: {len(memory)} | AI가 복습 중입니다... 🧠✨")
+    batch_state = torch.FloatTensor([t[0] for t in transitions])
+    batch_action = torch.LongTensor([t[1] for t in transitions]).view(-1, 1)
+    batch_reward = torch.FloatTensor([t[2] for t in transitions]).view(-1, 1)
+    batch_next_state = torch.FloatTensor([t[3] for t in transitions])
+    batch_done = torch.FloatTensor([t[4] for t in transitions]).view(-1, 1)
+    current_q, _ = model(batch_state)
+    current_q = current_q.gather(1, batch_action)
+    with torch.no_grad():
+        next_q, _ = model(batch_next_state)
+        max_next_q = next_q.max(1)[0].view(-1, 1)
+        target_q = batch_reward + (GAMMA * max_next_q * (1 - batch_done))
+    loss = criterion(current_q, target_q)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    return loss.item()
 
-if __name__ == "__main__":
-    print("================================")
-    print("   AI 시스템 연결 성공! (v1.0)   ")
-    print("================================")
+def start_real_training(new_episodes=100):
+    global total_episodes # 전역 변수 사용
+    print(f"\n🚀 추가 학습 {new_episodes}회를 시작합니다... (현재 누적: {total_episodes})")
     
-    # 가짜 데이터를 넣어 연결 테스트
-    test_state = [0.0] * STATE_DIM
-    memory.push(test_state, 1, 1.0, test_state, False)
-    
-    print("테스트 데이터 저장 완료. 이제 언리얼 엔진과 통신할 준비가 되었습니다.")
-
-    # AIServer/train.py 하단에 추가
-
-def start_real_training(episodes=100):
-    print("\n🚀 실전 학습 시뮬레이션을 시작합니다...")
-    
-    for episode in range(episodes):
-        # 1. 초기 상태 설정 (예: 기분이 '우울함'(-1.0)인 상태)
-        # [기분, 시간, 날씨, 현재배경, ...] 이런 식의 데이터라 가정합니다.
-        state = [random.uniform(-1, 1) for _ in range(STATE_DIM)] 
+    for i in range(new_episodes):
+        total_episodes += 1 # 누적 카운트 증가
         
-        # 2. AI의 판단 (Action 선택)
+        state = [random.uniform(-1, 1) for _ in range(STATE_DIM)] 
         state_tensor = torch.FloatTensor(state).unsqueeze(0)
         with torch.no_grad():
             action_scores, _ = model(state_tensor)
-            action = torch.argmax(action_scores).item() # 가장 점수 높은 행동 선택
+            action = torch.argmax(action_scores).item()
         
-        # 3. 보상 결정 (질문자님이 짠 로직 적용)
-        # 예: 기분이 우울한데(state[0] < 0) AI가 노래(action 1)를 선택했다면?
         user_sentiment = "sad" if state[0] < 0 else "happy"
         reward = give_reward(action, user_sentiment)
-        
-        # 4. 기억 저장 (Next State는 일단 현재와 같다고 가정)
         memory.push(state, action, reward, state, False)
         
-        # 5. 학습 수행
-        train_step()
+        loss_val = train_step()
         
-        if (episode + 1) % 10 == 0:
-            print(f"에피소드 {episode + 1}/{episodes} 완료! 학습 중...")
+        if total_episodes % 10 == 0:
+            if loss_val:
+                print(f"에피소드 {total_episodes} | Loss: {loss_val:.4f} 📉")
+            else:
+                print(f"에피소드 {total_episodes} | 데이터 수집 중...")
+
+    # 저장할 때 지능과 카운트를 함께 묶어서 저장합니다.
+    save_data = {
+        'model_state_dict': model.state_dict(),
+        'total_episodes': total_episodes
+    }
+    torch.save(save_data, SAVE_PATH)
+    print(f"\n💾 지능과 카운트가 저장되었습니다. (누적: {total_episodes}회)")
 
 if __name__ == "__main__":
-    # ... 기존 연결 코드 ...
-    start_real_training(100) # 100번의 연습 시뮬레이션 시작
-    print("\n✅ 학습 시뮬레이션이 종료되었습니다. AI의 판단력이 상승했습니다!")
+    print("================================")
+    print("   AI 시스템 연결 성공! (v1.3)   ")
+    print("================================")
+    
+    start_real_training(100) 
+    print("\n✅ 모든 과정이 종료되었습니다.")
