@@ -4,9 +4,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import random
 import os
+import numpy as np # [추가] 수치 계산용
 
 from models.model import MasterAgent  
-from memory import ReplayMemory       
+# [수정] 일반 ReplayMemory에서 PrioritizedMemory로 교체
+from memory import PrioritizedMemory       
 
 # 1. 하이퍼파라미터
 STATE_DIM = 16  
@@ -15,14 +17,15 @@ BATCH_SIZE = 32
 LR = 0.001      
 GAMMA = 0.99    
 SAVE_PATH = "master_agent_brain.pth"
-TARGET_UPDATE_INTERVAL = 100 # [추가] 100번 학습마다 정답지 뇌를 동기화
+TARGET_UPDATE_INTERVAL = 100 
 
 # 2. 인스턴스 생성
 model = MasterAgent(STATE_DIM, ACTION_DIM)
-target_model = MasterAgent(STATE_DIM, ACTION_DIM) # [추가] 정답지 전용 뇌 생성
-target_model.load_state_dict(model.state_dict()) # 실제 뇌와 똑같이 초기화
+target_model = MasterAgent(STATE_DIM, ACTION_DIM)
+target_model.load_state_dict(model.state_dict())
 
-memory = ReplayMemory(capacity=10000)
+# [수정] 우선순위 메모리로 인스턴스화
+memory = PrioritizedMemory(capacity=10000)
 optimizer = optim.Adam(model.parameters(), lr=LR)
 criterion = nn.MSELoss() 
 
@@ -32,12 +35,11 @@ if os.path.exists(SAVE_PATH):
     checkpoint = torch.load(SAVE_PATH)
     if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
         model.load_state_dict(checkpoint['model_state_dict'])
-        target_model.load_state_dict(checkpoint['model_state_dict']) # [추가] 타겟 뇌도 같이 업데이트
+        target_model.load_state_dict(checkpoint['model_state_dict'])
         total_episodes = checkpoint.get('total_episodes', 0)
     else:
         model.load_state_dict(checkpoint)
         target_model.load_state_dict(checkpoint)
-    
     print(f"📜 기존 지능을 불러왔습니다. (누적 학습 횟수: {total_episodes}회)")
 else:
     print("🐣 새로운 지능으로 처음부터 시작합니다.")
@@ -51,7 +53,10 @@ def give_reward(action, user_sentiment):
 def train_step():
     if len(memory) < BATCH_SIZE:
         return None
-    transitions = memory.sample(BATCH_SIZE)
+    
+    # [수정] 샘플링 시 인덱스(indices)를 함께 받아옵니다.
+    transitions, indices = memory.sample(BATCH_SIZE)
+    
     batch_state = torch.FloatTensor([t[0] for t in transitions])
     batch_action = torch.LongTensor([t[1] for t in transitions]).view(-1, 1)
     batch_reward = torch.FloatTensor([t[2] for t in transitions]).view(-1, 1)
@@ -59,20 +64,25 @@ def train_step():
     batch_done = torch.FloatTensor([t[4] for t in transitions]).view(-1, 1)
     
     current_q, _ = model(batch_state)
-    current_q = current_q.gather(1, batch_action)
+    current_q_val = current_q.gather(1, batch_action)
     
     with torch.no_grad():
-        # [수정] 다음 상태의 가치는 target_model(정답지 뇌)에서 가져옵니다.
         next_q, _ = target_model(batch_next_state)
         max_next_q = next_q.max(1)[0].view(-1, 1)
         target_q = batch_reward + (GAMMA * max_next_q * (1 - batch_done))
     
-    loss = criterion(current_q, target_q)
+    # [핵심 추가] 각 데이터의 오차(TD-Error) 계산
+    # 이 오차가 클수록 AI가 "오! 이건 몰랐는데?" 하고 중요하게 여깁니다.
+    td_errors = torch.abs(current_q_val - target_q).detach().cpu().numpy()
+    
+    # [수정] 메모리에 실제 학습 오차를 반영하여 우선순위 업데이트
+    memory.update_priorities(indices, td_errors)
+    
+    loss = criterion(current_q_val, target_q)
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
     
-    # [추가] 주기적으로 정답지 뇌 업데이트
     if total_episodes % TARGET_UPDATE_INTERVAL == 0:
         target_model.load_state_dict(model.state_dict())
         
@@ -93,6 +103,8 @@ def start_real_training(new_episodes=100):
         
         user_sentiment = "sad" if state[0] < 0 else "happy"
         reward = give_reward(action, user_sentiment)
+        
+        # [수정] 이제 메모리가 우선순위를 관리합니다.
         memory.push(state, action, reward, state, False)
         
         loss_val = train_step()
@@ -114,7 +126,7 @@ def start_real_training(new_episodes=100):
 
 if __name__ == "__main__":
     print("================================")
-    print("   AI 시스템 연결 성공! (v1.4)   ")
+    print("   AI 시스템 연결 성공! (v1.5)   ")
     print("================================")
     
     start_real_training(100) 
