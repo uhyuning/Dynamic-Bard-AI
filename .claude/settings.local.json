@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/UE5_AI_RL_Project -type d ! -path */Intermediate* ! -path */.vs* ! -path */.git*)",
+      "Bash(python -c \":*)",
+      "Bash(find C:/UE5_AI_RL_Project -not -path */.vs/* -not -path */Binaries/* -not -path */Content/* -not -path */__pycache__/* -not -path */.git/* -not -path */Intermediate/* -not -path */Saved/* -not -path */DerivedDataCache/* -type f)"
+    ]
+  }
+}

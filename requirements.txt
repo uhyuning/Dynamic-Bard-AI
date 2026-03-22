@@ -11,6 +11,13 @@ fastapi                 # UE5와 통신할 초고속 서버 프레임워크
 uvicorn                 # FastAPI 서버를 실행해주는 도구
 pydantic                # 데이터 규격 및 유효성 검사
 
+# --- OpenAI ---
+openai                  # GPT API 클라이언트
+python-dotenv           # .env 파일에서 API 키 로드
+
+# --- Spotify ---
+spotipy                 # Spotify Web API 클라이언트
+
 # --- Utilities ---
 numpy                   # 수치 계산 라이브러리
 matplotlib              # 학습 결과 시각화(그래프) 도구

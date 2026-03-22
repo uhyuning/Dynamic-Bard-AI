@@ -18,13 +18,20 @@ public class Dynamic_Bard_AI_UE5 : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			// AI 서버 통신에 필요한 모듈
+			"HTTP",
+			"Json",
+			"JsonUtilities"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[] {
+			"SlateCore"
+		});
 
 		PublicIncludePaths.AddRange(new string[] {
 			"Dynamic_Bard_AI_UE5",
+			"Dynamic_Bard_AI_UE5/BardAI",
 			"Dynamic_Bard_AI_UE5/Variant_Platforming",
 			"Dynamic_Bard_AI_UE5/Variant_Platforming/Animation",
 			"Dynamic_Bard_AI_UE5/Variant_Combat",
